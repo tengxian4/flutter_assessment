@@ -8,6 +8,7 @@ import 'package:username_gen/username_gen.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
 
 int ADD_CONTACT=5;
 int ITEM_PER_PAGE=15;
@@ -75,7 +76,7 @@ class MyApp extends StatelessWidget {
         // or simply save your changes to "hot reload" in a Flutter IDE).
         // Notice that the counter didn't reset back to zero; the application
         // is not restarted.
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.blueGrey,
       ),
       home: const MyHomePage(title: 'Khaw Teng Xian'),
     );
@@ -105,13 +106,31 @@ class _MyHomePageState extends State<MyHomePage> {
   List <Contact> savedInstanceState_contact=[];
   ScrollController _scrollController = new ScrollController();
   List<bool> isSelected=[true,false];
-  bool isTimeAgo=true;
+  bool isTimeAgo=true,sharing=false;
+  String share_name='',
+       share_phoneNo='',
+  share_time='';
 
   @override
   void initState(){
 
     get_contact();
-    isTimeAgo=getTimeAgo() as bool;
+    setTimeAgo();
+    _scrollController.addListener(() {
+      if(_scrollController.position.pixels==0 && _scrollController.position.atEdge) {
+        // print(_scrollController.position.pixels!=0 && _scrollController.position.atEdge);
+        Fluttertoast.showToast(
+            msg: "You have reached to the end of the list",
+            toastLength: Toast.LENGTH_SHORT,
+            gravity: ToastGravity.BOTTOM,
+            timeInSecForIosWeb: 1,
+            backgroundColor: Colors.blueGrey,
+            textColor: Colors.white,
+            fontSize: 16.0
+        );
+
+      }
+    });
     super.initState();
   }
 
@@ -121,9 +140,11 @@ class _MyHomePageState extends State<MyHomePage> {
     savedInstanceState_contact=[];
     super.dispose();
   }
-  
+
+
   void get_contact()async{
     savedInstanceState_contact= await fetchContact();
+    savedInstanceState_contact.sort((a, b) => DateTime.parse(a.checkIn).compareTo(DateTime.parse(b.checkIn)));
   }
   void savePreference(bool s) async{
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -134,17 +155,15 @@ class _MyHomePageState extends State<MyHomePage> {
     bool timeAgo = await prefs.getBool('timeAgo') ?? true;
     return timeAgo;
   }
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  void setTimeAgo()async{
+    isTimeAgo=await getTimeAgo();
   }
-  
+  void _onShare(BuildContext context) async {
+    final box = context.findRenderObject() as RenderBox?;
+    await Share.share(share_name,
+        subject: share_phoneNo+ "\n"+share_time,
+        sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -156,90 +175,117 @@ class _MyHomePageState extends State<MyHomePage> {
     // fast, so that you can just rebuild anything that needs updating rather
     // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-        actions: [ToggleButtons(children: <Widget>[Icon(Icons.alarm,color: Colors.white),
-          Icon(Icons.date_range,color:Colors.white,),
-        ],onPressed:(index){
-
-
+      appBar: !sharing?AppBar(title: Text(widget.title),
+        actions: [ToggleButtons(children: <Widget>[
+          Card(color: isTimeAgo?Colors.amberAccent:Colors.blueGrey,
+            child:Icon(Icons.alarm,color: Colors.white,),),
+      Card(color: !isTimeAgo?Colors.amberAccent:Colors.blueGrey,
+          child:Icon(Icons.date_range,color:Colors.white,),)],onPressed:(index){
           setState(() {
             savePreference(isSelected[index]);
             isTimeAgo=isSelected[index];
+
           });
-        },isSelected: isSelected, )],
+        },isSelected: isSelected, )
+    ],):AppBar(
+leading:IconButton(onPressed:() {
+  setState(() {
+    sharing=false;
+  });
+}, icon: Icon(Icons.arrow_back),
+) ,
+        actions: [
+          IconButton(onPressed:() {
+          _onShare(context);
+        }, icon: Icon(Icons.share),
+        )],
       ),
-      body: RefreshIndicator(
-            child: ListView.builder(
-                itemCount: savedInstanceState_contact.length ,
-              itemBuilder: (context, index){
+      body:RefreshIndicator(
+          child: ListView.builder(
+            controller: _scrollController,
+            itemCount: savedInstanceState_contact.length ,
+            itemBuilder: (context, index){
 
 //find the index
-                if(isTimeAgo==false){
-                  return ListTile(
-                    leading: Text(savedInstanceState_contact.elementAt(index).user),
-                    title: Text(savedInstanceState_contact.elementAt(index).phone),
-                    trailing: Text(savedInstanceState_contact.elementAt(index).checkIn),
-                  );
-                }else {
-                  //Duration diff = DateTime.now().difference(DateTime.parse(savedInstanceState_contact.elementAt(index).checkIn));
-                  //DateTime.now().subtract(diff);
+              if(isTimeAgo==false){
+                return Card(child:  GestureDetector(child: ListTile(
+                  leading: Text(savedInstanceState_contact.elementAt(index).user),
+                  title: Text(savedInstanceState_contact.elementAt(index).phone),
+                  trailing: Text(savedInstanceState_contact.elementAt(index).checkIn),
+                ),onLongPress: (){
+                  share_name=savedInstanceState_contact.elementAt(index).user;
+                  share_phoneNo=savedInstanceState_contact.elementAt(index).phone;
+                  share_time=savedInstanceState_contact.elementAt(index).checkIn;
+                  setState(() {
+                    sharing=true;
+                  });
+                },),);
+              }else {
+                //Duration diff = DateTime.now().difference(DateTime.parse(savedInstanceState_contact.elementAt(index).checkIn));
+                //DateTime.now().subtract(diff);
 
-                  return ListTile(
-                    leading: Text(savedInstanceState_contact.elementAt(index).user),
-                    title: Text(savedInstanceState_contact.elementAt(index).phone),
-                    trailing: Text(timeago.format(DateTime.parse(savedInstanceState_contact.elementAt(index).checkIn))),
+                return Card(child:GestureDetector(child: ListTile(
+                  leading: Text(savedInstanceState_contact.elementAt(index).user),
+                  title: Text(savedInstanceState_contact.elementAt(index).phone),
+                  trailing: Text(timeago.format(DateTime.parse(savedInstanceState_contact.elementAt(index).checkIn))),
+                ),onLongPress: (){
+                  share_name=savedInstanceState_contact.elementAt(index).user;
+                  share_phoneNo=savedInstanceState_contact.elementAt(index).phone;
+                  share_time=savedInstanceState_contact.elementAt(index).checkIn;
+
+                  setState(() {
+                   sharing=true;
+                  });
+
+                },) ,);
+              }
+
+            },
+
+            reverse: true,
+            physics: const AlwaysScrollableScrollPhysics(),
+          ),
+
+
+          onRefresh:(){
+            String randomDate;
+            String phoneNo;
+            String uname;
+            List<Contact> listContact=[];
+
+            for (var i=0 ;i<ADD_CONTACT;i++){
+
+              randomDate= DateTime.now().subtract(Duration(days: Random().nextInt(365))).toString().substring(0,10) +" "+
+                  DateFormat.Hms().format(DateTime.now().subtract(Duration(hours:Random().nextInt(24),minutes: Random().nextInt(60))));
+              phoneNo="01"+Random().nextInt(99999999).toString();
+              uname=UsernameGen().generate();
+
+              Contact c = new Contact(checkIn:randomDate, phone:phoneNo, user: uname);
+              listContact.add(c);
+
+            }
+
+            return Future.delayed(Duration(seconds: 0),
+                    (){
+                  setState(() {
+                    savedInstanceState_contact.addAll(listContact);
+                    savedInstanceState_contact.sort((a, b) => DateTime.parse(a.checkIn).compareTo(DateTime.parse(b.checkIn)));
+                    //savedInstanceState_contact;
+                  });
+                  Fluttertoast.showToast(
+                      msg: "Page Refreshed\n5 random contacts added",
+                      toastLength: Toast.LENGTH_SHORT,
+                      gravity: ToastGravity.BOTTOM,
+                      timeInSecForIosWeb: 1,
+                      backgroundColor: Colors.blueGrey,
+                      textColor: Colors.white,
+                      fontSize: 16.0
                   );
                 }
-
-              },
-
-              //let the screen display 15 contacts maximum at a time
-             reverse: true,
-              physics: const AlwaysScrollableScrollPhysics(),
-            ),
-
-      onRefresh:(){
-        String randomDate;
-        String phoneNo;
-        String uname;
-        List<Contact> listContact=[];
-
-        for (var i=0 ;i<ADD_CONTACT;i++){
-
-          randomDate= DateTime.now().toString().substring(0,10) +" "+ DateFormat.Hms().format(DateTime.now());
-          phoneNo="01"+Random().nextInt(99999999).toString();
-          uname=UsernameGen().generate();
-
-          Contact c = new Contact(checkIn:randomDate, phone:phoneNo, user: uname);
-          listContact.add(c);
-
-        }
-
-        return Future.delayed(Duration(seconds: 0),
-                (){
-              setState(() {
-                savedInstanceState_contact.addAll(listContact);
-
-                //savedInstanceState_contact;
-              });
-              Fluttertoast.showToast(
-                  msg: "Page Refreshed",
-                  toastLength: Toast.LENGTH_SHORT,
-                  gravity: ToastGravity.BOTTOM,
-                  timeInSecForIosWeb: 1,
-                  backgroundColor: Colors.blueGrey,
-                  textColor: Colors.white,
-                  fontSize: 16.0
-              );
-            }
-        );
-      }
+            );
+          }
       ),
-
-    );
+      );
   }
 }
 
