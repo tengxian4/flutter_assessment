@@ -1,7 +1,16 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
+import 'package:username_gen/username_gen.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:timeago/timeago.dart' as timeago;
+import 'package:shared_preferences/shared_preferences.dart';
+
+int ADD_CONTACT=5;
+int ITEM_PER_PAGE=15;
 
 Future <List<Contact>> fetchContact() async{
   final response = await http.get(Uri.parse('http://tengxian.pythonanywhere.com/'));
@@ -55,7 +64,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Assessment Khaw Teng Xian',
+      title: 'Khaw Teng Xian',
       theme: ThemeData(
         // This is the theme of your application.
         //
@@ -68,7 +77,7 @@ class MyApp extends StatelessWidget {
         // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Flutter Assessment Khaw Teng Xian'),
+      home: const MyHomePage(title: 'Khaw Teng Xian'),
     );
   }
 }
@@ -94,8 +103,36 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
   List <Contact> savedInstanceState_contact=[];
+  ScrollController _scrollController = new ScrollController();
+  List<bool> isSelected=[true,false];
+  bool isTimeAgo=true;
+
+  @override
+  void initState(){
+
+    get_contact();
+    isTimeAgo=getTimeAgo() as bool;
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    // disposing states
+    savedInstanceState_contact=[];
+    super.dispose();
+  }
+  
   void get_contact()async{
     savedInstanceState_contact= await fetchContact();
+  }
+  void savePreference(bool s) async{
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('timeAgo',s);
+  }
+  Future<bool> getTimeAgo()async{
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    bool timeAgo = await prefs.getBool('timeAgo') ?? true;
+    return timeAgo;
   }
   void _incrementCounter() {
     setState(() {
@@ -107,12 +144,11 @@ class _MyHomePageState extends State<MyHomePage> {
       _counter++;
     });
   }
-  void _append_contact(){
-    fetchContact();
-  }
+  
 
   @override
   Widget build(BuildContext context) {
+
     // This method is rerun every time setState is called, for instance as done
     // by the _incrementCounter method above.
     //
@@ -124,36 +160,86 @@ class _MyHomePageState extends State<MyHomePage> {
         // Here we take the value from the MyHomePage object that was created by
         // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
+        actions: [ToggleButtons(children: <Widget>[Icon(Icons.alarm,color: Colors.white),
+          Icon(Icons.date_range,color:Colors.white,),
+        ],onPressed:(index){
+
+
+          setState(() {
+            savePreference(isSelected[index]);
+            isTimeAgo=isSelected[index];
+          });
+        },isSelected: isSelected, )],
       ),
       body: RefreshIndicator(
-child:FutureBuilder<List<Contact>>(
-  future: fetchContact(),
-  builder: (context,AsyncSnapshot snapshot){
-    if(snapshot.hasData){
-      return Container(child: ListView.builder(
-        itemCount: (snapshot.data?.length <15) ? snapshot.data?.length :15,
-          itemBuilder:(BuildContext context, int index){
-          print('snapshot length is ');
-          print(snapshot.data?.length);
-        return Text(snapshot.data[index].user);
+            child: ListView.builder(
+                itemCount: savedInstanceState_contact.length ,
+              itemBuilder: (context, index){
 
-      },),);
-    }
-    else if(snapshot.hasError){
-      return Text('${snapshot.error}');
-    }
-    return const CircularProgressIndicator();
-  },
-) ,
-      onRefresh:(){ return Future.delayed(Duration(seconds: 1),
-          (){
-        setState(() {
+//find the index
+                if(isTimeAgo==false){
+                  return ListTile(
+                    leading: Text(savedInstanceState_contact.elementAt(index).user),
+                    title: Text(savedInstanceState_contact.elementAt(index).phone),
+                    trailing: Text(savedInstanceState_contact.elementAt(index).checkIn),
+                  );
+                }else {
+                  //Duration diff = DateTime.now().difference(DateTime.parse(savedInstanceState_contact.elementAt(index).checkIn));
+                  //DateTime.now().subtract(diff);
 
-        });
-          }
+                  return ListTile(
+                    leading: Text(savedInstanceState_contact.elementAt(index).user),
+                    title: Text(savedInstanceState_contact.elementAt(index).phone),
+                    trailing: Text(timeago.format(DateTime.parse(savedInstanceState_contact.elementAt(index).checkIn))),
+                  );
+                }
+
+              },
+
+              //let the screen display 15 contacts maximum at a time
+             reverse: true,
+              physics: const AlwaysScrollableScrollPhysics(),
+            ),
+
+      onRefresh:(){
+        String randomDate;
+        String phoneNo;
+        String uname;
+        List<Contact> listContact=[];
+
+        for (var i=0 ;i<ADD_CONTACT;i++){
+
+          randomDate= DateTime.now().toString().substring(0,10) +" "+ DateFormat.Hms().format(DateTime.now());
+          phoneNo="01"+Random().nextInt(99999999).toString();
+          uname=UsernameGen().generate();
+
+          Contact c = new Contact(checkIn:randomDate, phone:phoneNo, user: uname);
+          listContact.add(c);
+
+        }
+
+        return Future.delayed(Duration(seconds: 0),
+                (){
+              setState(() {
+                savedInstanceState_contact.addAll(listContact);
+
+                //savedInstanceState_contact;
+              });
+              Fluttertoast.showToast(
+                  msg: "Page Refreshed",
+                  toastLength: Toast.LENGTH_SHORT,
+                  gravity: ToastGravity.BOTTOM,
+                  timeInSecForIosWeb: 1,
+                  backgroundColor: Colors.blueGrey,
+                  textColor: Colors.white,
+                  fontSize: 16.0
+              );
+            }
         );
-    }
-    ));
+      }
+      ),
+
+    );
   }
 }
 
