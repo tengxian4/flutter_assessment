@@ -1,16 +1,6 @@
 # flutter_assessment
 
-Flutter assessment from Vimigo
+All the storylines have been completed. 
+I have created one API to retrieve the contact lists. http://tengxian.pythonanywhere.com/ This is to mimic a real life situation. The generated random contact can be saved in the server but due to time limitation, I didn't do it. The list view also can be built using another file ending with ViewModel and ViewHolder.  
 
-## Getting Started
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
